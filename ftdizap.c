@@ -279,6 +279,7 @@ main(int argc, const char *argv[])
                    i2cid1 = -1,
                    i2cid2 = -1,
                    i2cid3 = -1;
+   int             reset = 0;
    const char     *description = NULL;
    const char     *manufacturer = NULL;
    const char     *product = NULL;
@@ -290,10 +291,11 @@ main(int argc, const char *argv[])
          {"vendor", 'v', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchvid, 0, "Vendor ID to find device", "N"},
          {"product", 'p', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchpid, 0, "Product ID to find device", "N"},
          {"index", 'i', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchindex, 0, "Index to find device", "N"},
-         {"cbus0", '0', POPT_ARG_INT, &cbus0, 0, "CBUS0 output", "0/1"},
-         {"cbus1", '1', POPT_ARG_INT, &cbus1, 0, "CBUS1 output", "0/1"},
-         {"cbus2", '2', POPT_ARG_INT, &cbus2, 0, "CBUS2 output", "0/1"},
-         {"cbus3", '3', POPT_ARG_INT, &cbus3, 0, "CBUS3 output", "0/1"},
+         {"cbus0", 0, POPT_ARG_INT, &cbus0, 0, "CBUS0 output", "0/1"},
+         {"cbus1", 0, POPT_ARG_INT, &cbus1, 0, "CBUS1 output", "0/1"},
+         {"cbus2", 0, POPT_ARG_INT, &cbus2, 0, "CBUS2 output", "0/1"},
+         {"cbus3", 0, POPT_ARG_INT, &cbus3, 0, "CBUS3 output", "0/1"},
+         {"reset", 0, POPT_ARG_NONE, &reset, 0, "RTS reset"},
          {"vid", 'V', POPT_ARG_INT, &vid, 0, "Vendor ID", "N"},
          {"pid", 'P', POPT_ARG_INT, &pid, 0, "Product ID", "N"},
          {"manufacturer", 'M', POPT_ARG_STRING, &manufacturer, 0, "Manufacturer", "text"},
@@ -392,6 +394,14 @@ main(int argc, const char *argv[])
          value |= (1 << 3);
       if (ftdi_set_bitmode(ftdi, (mask << 4) | value, BITMODE_CBUS) < 0)
          errx(1, "Cannot set CBUS: %s", ftdi_get_error_string(ftdi));
+      if (libusb_release_interface(ftdi->usb_dev, 0))
+         errx(1, "Release failed");
+      if (reset)
+      { // RTS reset
+	          ftdi_setrts(ftdi,1); /* makes low */
+		  usleep(100000);
+	          ftdi_setrts(ftdi,0); /* makes high */
+      }
    } else
    {                            /* EEPROM */
       if (ftdi_read_eeprom(ftdi))
@@ -464,14 +474,17 @@ main(int argc, const char *argv[])
 
       for (int a = 0; a < ELEN; a += 2)
          if (was[a] != buf[a] || was[a + 1] != buf[a + 1])
+         {
             if (libusb_control_transfer(ftdi->usb_dev, FTDI_DEVICE_OUT_REQTYPE,
                                         SIO_WRITE_EEPROM_REQUEST, getword(a / 2), a / 2, NULL, 0,
                                         ftdi->usb_write_timeout))
                errx(1, "Write failed at 0x%04X: %s", a, ftdi_get_error_string(ftdi));
-
+            reset = 1;
+         }
       if (libusb_release_interface(ftdi->usb_dev, 0))
          errx(1, "Release failed");
-      libusb_reset_device(ftdi->usb_dev);
+      if (reset)
+         libusb_reset_device(ftdi->usb_dev);
    }
    //libusb_close(ftdi->usb_dev);       /* why does this seg fault? */
    //ftdi_free(ftdi);
