@@ -230,10 +230,14 @@ main(int argc, const char *argv[])
    int             cbus0 = -1,
                    cbus1 = -1,
                    cbus2 = -1,
-                   cbus3 = -1,
-                   cbus4 = -1,
-                   cbus5 = -1,
-                   cbus6 = -1;
+                   cbus3 = -1;
+   int             cbus0mode = -1,
+                   cbus1mode = -1,
+                   cbus2mode = -1,
+                   cbus3mode = -1,
+                   cbus4mode = -1,
+                   cbus5mode = -1,
+                   cbus6mode = -1;
    int             vid = -1,
                    pid = -1,
                    release = -1;
@@ -286,19 +290,23 @@ main(int argc, const char *argv[])
          {"vendor", 'v', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchvid, 0, "Vendor ID to find device", "N"},
          {"product", 'p', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchpid, 0, "Product ID to find device", "N"},
          {"index", 'i', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchindex, 0, "Index to find device", "N"},
+         {"cbus0", '0', POPT_ARG_INT, &cbus0, 0, "CBUS0 output", "0/1"},
+         {"cbus1", '1', POPT_ARG_INT, &cbus1, 0, "CBUS1 output", "0/1"},
+         {"cbus2", '2', POPT_ARG_INT, &cbus2, 0, "CBUS2 output", "0/1"},
+         {"cbus3", '3', POPT_ARG_INT, &cbus3, 0, "CBUS3 output", "0/1"},
          {"vid", 'V', POPT_ARG_INT, &vid, 0, "Vendor ID", "N"},
          {"pid", 'P', POPT_ARG_INT, &pid, 0, "Product ID", "N"},
          {"manufacturer", 'M', POPT_ARG_STRING, &manufacturer, 0, "Manufacturer", "text"},
          {"serial", 'S', POPT_ARG_STRING, &serial, 0, "Serial Number", "text"},
          {"description", 'D', POPT_ARG_STRING, &description, 0, "Description", "text"},
          {"release", 'R', POPT_ARG_INT, &release, 0, "Release", "N"},
-         {"cbus0", '0', POPT_ARG_INT, &cbus0, 0, "CBUS0 mapping", "N"},
-         {"cbus1", '1', POPT_ARG_INT, &cbus1, 0, "CBUS1 mapping", "N"},
-         {"cbus2", '2', POPT_ARG_INT, &cbus2, 0, "CBUS2 mapping", "N"},
-         {"cbus3", '3', POPT_ARG_INT, &cbus3, 0, "CBUS3 mapping", "N"},
-         {"cbus4", '4', POPT_ARG_INT, &cbus4, 0, "CBUS4 mapping", "N"},
-         {"cbus5", '5', POPT_ARG_INT, &cbus5, 0, "CBUS5 mapping", "N"},
-         {"cbus6", '6', POPT_ARG_INT, &cbus6, 0, "CBUS6 mapping", "N"},
+         {"cbus0-mode", '0', POPT_ARG_INT, &cbus0mode, 0, "CBUS0 mapping", "N"},
+         {"cbus1-mode", '1', POPT_ARG_INT, &cbus1mode, 0, "CBUS1 mapping", "N"},
+         {"cbus2-mode", '2', POPT_ARG_INT, &cbus2mode, 0, "CBUS2 mapping", "N"},
+         {"cbus3-mode", '3', POPT_ARG_INT, &cbus3mode, 0, "CBUS3 mapping", "N"},
+         {"cbus4-mode", '4', POPT_ARG_INT, &cbus4mode, 0, "CBUS4 mapping", "N"},
+         {"cbus5-mode", '5', POPT_ARG_INT, &cbus5mode, 0, "CBUS5 mapping", "N"},
+         {"cbus6-mode", '6', POPT_ARG_INT, &cbus6mode, 0, "CBUS6 mapping", "N"},
          {"bcd-enable", 0, POPT_ARG_INT, &bcdenable, 0, "BCD Enable", "0/1"},
          {"force-power", 0, POPT_ARG_INT, &forcepowerenable, 0, "Force Power Enable", "0/1"},
          {"deactivate-sleep", 0, POPT_ARG_INT, &deactivatesleep, 0, "De-activate Sleep", "0/1"},
@@ -361,84 +369,110 @@ main(int argc, const char *argv[])
 
    if (ftdi_usb_open_desc_index(ftdi, matchvid, matchpid, NULL, NULL, matchindex) < 0)
       errx(1, "Cannot find device");
-   if (ftdi_read_eeprom(ftdi))
-      errx(1, "Cannot read EEPROM: %s", ftdi_get_error_string(ftdi));
-   int             elen = 0;
-   if (ftdi_get_eeprom_value(ftdi, CHIP_SIZE, &elen))
+
+   unsigned char   mask = 0;
+   if (cbus0 >= 0)
+      mask |= (1 << 0);
+   if (cbus1 >= 0)
+      mask |= (1 << 1);
+   if (cbus2 >= 0)
+      mask |= (1 << 2);
+   if (cbus3 >= 0)
+      mask |= (1 << 3);
+   if (mask)
+   {                            /* Setting CBUS */
+      unsigned char   value = 0;
+      if (cbus0 > 0)
+         value |= (1 << 0);
+      if (cbus1 > 0)
+         value |= (1 << 1);
+      if (cbus2 > 0)
+         value |= (1 << 2);
+      if (cbus3 > 0)
+         value |= (1 << 3);
+      if (ftdi_set_bitmode(ftdi, (mask << 4) | value, BITMODE_CBUS) < 0)
+         errx(1, "Cannot set CBUS: %s", ftdi_get_error_string(ftdi));
+   } else
+   {                            /* EEPROM */
       if (ftdi_read_eeprom(ftdi))
          errx(1, "Cannot read EEPROM: %s", ftdi_get_error_string(ftdi));
-   if (debug)
-      fprintf(stderr, "EEPROM size 0x%04X\n", elen);
-   if (elen > ELEN)
-      errx(1, "EEPROM too big");
-   if (ftdi_get_eeprom_buf(ftdi, buf, elen))
-      errx(1, "Cannot read EEPROM: %s", ftdi_get_error_string(ftdi));
-   memcpy(was, buf, ELEN);
+      int             elen = 0;
+      if (ftdi_get_eeprom_value(ftdi, CHIP_SIZE, &elen))
+         if (ftdi_read_eeprom(ftdi))
+            errx(1, "Cannot read EEPROM: %s", ftdi_get_error_string(ftdi));
+      if (debug)
+         fprintf(stderr, "EEPROM size 0x%04X\n", elen);
+      if (elen > ELEN)
+         errx(1, "EEPROM too big");
+      if (ftdi_get_eeprom_buf(ftdi, buf, elen))
+         errx(1, "Cannot read EEPROM: %s", ftdi_get_error_string(ftdi));
+      memcpy(was, buf, ELEN);
 
-   /* Strings */
-   setstring(0x07, manufacturer, "Manufacturer");
-   setstring(0x08, description, "Description");
-   setstring(0x09, serial, "Serial");
+      /* Strings */
+      setstring(0x07, manufacturer, "Manufacturer");
+      setstring(0x08, description, "Description");
+      setstring(0x09, serial, "Serial");
 
-   /* General settings */
-   setword(0x01, vid, "VID");
-   setword(0x02, pid, "PID");
-   setword(0x03, release, "Release");
-   setbyte(0x1A, cbus0, "CBUS0");
-   setbyte(0x1B, cbus1, "CBUS1");
-   setbyte(0x1C, cbus2, "CBUS2");
-   setbyte(0x1D, cbus3, "CBUS3");
-   setbyte(0x1E, cbus4, "CBUS4");
-   setbyte(0x1F, cbus5, "CBUS5");
-   setbyte(0x20, cbus6, "CBUS6");
-   setbit(0x00, 0, bcdenable, "BCD Enable");
-   setbit(0x00, 1, forcepowerenable, "Force Power Enable");
-   setbit(0x00, 2, deactivatesleep, "De-activate Sleep");
-   setbit(0x00, 3, rs485echosuppress, "RS485 Echo Suppress");
-   setbit(0x00, 4, extosc, "Ext OSC");
-   setbit(0x00, 5, extoscfeedback, "Ext OSC Feedback Resistor Enable");
-   setbit(0x00, 6, cbuspinsetforvbussense, "CBUS pin set for VBUS sense");
-   setbit(0x00, 7, loadd2xxorvcpdrive, "Load D2XX or VCP Driver");
-   setbit(0x08, 5, enableusbremote, "Enable USB Remote wakeup");
-   setbit(0x08, 6, selfpowered, "Self Powered");
-   setbyte(0x09, maxpower, "Max Power Value");
-   setbit(0x0A, 2, suspendpulldown, "USB suspend pull down enable");
-   setbit(0x0A, 3, enableserialnumber, "Enable/Disable USB Serial Number");
-   setbit(0x0A, 4, ft1249cpol, "FT1248 Clock polarity");
-   setbit(0x0A, 5, ft1249bord, "FT1248 Bit Order");
-   setbit(0x0A, 6, ft1249flow, "FT1248 Flow Control Enable");
-   setbit(0x0A, 7, disableschmitt, "Disable I2C Schmitt");
-   setbit(0x0B, 0, inverttxd, "Invert TXD");
-   setbit(0x0B, 1, invertrxd, "Invert RXD");
-   setbit(0x0B, 2, invertrts, "Invert RTS");
-   setbit(0x0B, 3, invertcts, "Invert CTS");
-   setbit(0x0B, 4, invertdtr, "Invert DTR");
-   setbit(0x0B, 5, invertdsr, "Invert DSR");
-   setbit(0x0B, 6, invertdcd, "Invert DCD");
-   setbit(0x0B, 7, invertri, "Invert RI");
-   setbit2(0x0C, 0, dbusdrive, "DBUS Drive Current Strength");
-   setbit(0x0C, 2, dbusslow, "DBUS Slew Rate Slow");
-   setbit(0x0C, 3, dbusschmitt, "DBUS Schmitt Trigger Enable");
-   setbit2(0x0C, 4, cbusdrive, "CBUS Drive Current Strength");
-   setbit(0x0C, 6, cbusslow, "CBUS Slew Rate Slow");
-   setbit(0x0C, 7, cbusschmitt, "CBUS Schmitt Trigger Enable");
-   setword(0x0A, i2cslave, "I2C Slave Address");
-   setbyte(0x16, i2cid1, "I2C Device ID Byte 1");
-   setbyte(0x17, i2cid2, "I2C Device ID Byte 2");
-   setbyte(0x18, i2cid3, "I2C Device ID Byte 3");
+      /* General settings */
+      setword(0x01, vid, "VID");
+      setword(0x02, pid, "PID");
+      setword(0x03, release, "Release");
+      setbyte(0x1A, cbus0mode, "CBUS0 Mode");
+      setbyte(0x1B, cbus1mode, "CBUS1 Mode");
+      setbyte(0x1C, cbus2mode, "CBUS2 Mode");
+      setbyte(0x1D, cbus3mode, "CBUS3 Mode");
+      setbyte(0x1E, cbus4mode, "CBUS4 Mode");
+      setbyte(0x1F, cbus5mode, "CBUS5 Mode");
+      setbyte(0x20, cbus6mode, "CBUS6 Mode");
+      setbit(0x00, 0, bcdenable, "BCD Enable");
+      setbit(0x00, 1, forcepowerenable, "Force Power Enable");
+      setbit(0x00, 2, deactivatesleep, "De-activate Sleep");
+      setbit(0x00, 3, rs485echosuppress, "RS485 Echo Suppress");
+      setbit(0x00, 4, extosc, "Ext OSC");
+      setbit(0x00, 5, extoscfeedback, "Ext OSC Feedback Resistor Enable");
+      setbit(0x00, 6, cbuspinsetforvbussense, "CBUS pin set for VBUS sense");
+      setbit(0x00, 7, loadd2xxorvcpdrive, "Load D2XX or VCP Driver");
+      setbit(0x08, 5, enableusbremote, "Enable USB Remote wakeup");
+      setbit(0x08, 6, selfpowered, "Self Powered");
+      setbyte(0x09, maxpower, "Max Power Value");
+      setbit(0x0A, 2, suspendpulldown, "USB suspend pull down enable");
+      setbit(0x0A, 3, enableserialnumber, "Enable/Disable USB Serial Number");
+      setbit(0x0A, 4, ft1249cpol, "FT1248 Clock polarity");
+      setbit(0x0A, 5, ft1249bord, "FT1248 Bit Order");
+      setbit(0x0A, 6, ft1249flow, "FT1248 Flow Control Enable");
+      setbit(0x0A, 7, disableschmitt, "Disable I2C Schmitt");
+      setbit(0x0B, 0, inverttxd, "Invert TXD");
+      setbit(0x0B, 1, invertrxd, "Invert RXD");
+      setbit(0x0B, 2, invertrts, "Invert RTS");
+      setbit(0x0B, 3, invertcts, "Invert CTS");
+      setbit(0x0B, 4, invertdtr, "Invert DTR");
+      setbit(0x0B, 5, invertdsr, "Invert DSR");
+      setbit(0x0B, 6, invertdcd, "Invert DCD");
+      setbit(0x0B, 7, invertri, "Invert RI");
+      setbit2(0x0C, 0, dbusdrive, "DBUS Drive Current Strength");
+      setbit(0x0C, 2, dbusslow, "DBUS Slew Rate Slow");
+      setbit(0x0C, 3, dbusschmitt, "DBUS Schmitt Trigger Enable");
+      setbit2(0x0C, 4, cbusdrive, "CBUS Drive Current Strength");
+      setbit(0x0C, 6, cbusslow, "CBUS Slew Rate Slow");
+      setbit(0x0C, 7, cbusschmitt, "CBUS Schmitt Trigger Enable");
+      setword(0x0A, i2cslave, "I2C Slave Address");
+      setbyte(0x16, i2cid1, "I2C Device ID Byte 1");
+      setbyte(0x17, i2cid2, "I2C Device ID Byte 2");
+      setbyte(0x18, i2cid3, "I2C Device ID Byte 3");
 
-   checksum();
+      checksum();
 
-   for (int a = 0; a < ELEN; a += 2)
-      if (was[a] != buf[a] || was[a + 1] != buf[a + 1])
-         if (libusb_control_transfer(ftdi->usb_dev, FTDI_DEVICE_OUT_REQTYPE,
-                                     SIO_WRITE_EEPROM_REQUEST, getword(a / 2), a / 2, NULL, 0,
-                                     ftdi->usb_write_timeout))
-            errx(1, "Write failed at 0x%04X: %s", a, ftdi_get_error_string(ftdi));
+      for (int a = 0; a < ELEN; a += 2)
+         if (was[a] != buf[a] || was[a + 1] != buf[a + 1])
+            if (libusb_control_transfer(ftdi->usb_dev, FTDI_DEVICE_OUT_REQTYPE,
+                                        SIO_WRITE_EEPROM_REQUEST, getword(a / 2), a / 2, NULL, 0,
+                                        ftdi->usb_write_timeout))
+               errx(1, "Write failed at 0x%04X: %s", a, ftdi_get_error_string(ftdi));
 
-   if (libusb_release_interface(ftdi->usb_dev, 0))
-      errx(1, "Release failed");
-   libusb_reset_device(ftdi->usb_dev);
+      if (libusb_release_interface(ftdi->usb_dev, 0))
+         errx(1, "Release failed");
+      libusb_reset_device(ftdi->usb_dev);
+   }
    //libusb_close(ftdi->usb_dev);       /* why does this seg fault? */
    //ftdi_free(ftdi);
 
