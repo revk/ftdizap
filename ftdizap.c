@@ -271,6 +271,10 @@ main(int argc, const char *argv[])
                    cbusdrive = -1,
                    cbusslow = -1,
                    cbusschmitt = -1;
+   int             i2cslave = -1,
+                   i2cid1 = -1,
+                   i2cid2 = -1,
+                   i2cid3 = -1;
    const char     *description = NULL;
    const char     *manufacturer = NULL;
    const char     *product = NULL;
@@ -326,6 +330,10 @@ main(int argc, const char *argv[])
          {"cbus-drive", 0, POPT_ARG_INT, &cbusdrive, 0, "CBUS Drive Current Strength", "0-3"},
          {"cbus-slow", 0, POPT_ARG_INT, &cbusslow, 0, "CBUS Slew Rate Slow", "0/1"},
          {"cbus-schmitt", 0, POPT_ARG_INT, &cbusschmitt, 0, "CBUS Schmitt Trigger Enable", "0/1"},
+         {"i2c-address", 0, POPT_ARG_INT, &i2cslave, 0, "I2C Slave Address", "0-127"},
+         {"i2c-id1", 0, POPT_ARG_INT, &i2cid1, 0, "I2C Device ID Byte 1", "0-255"},
+         {"i2c-id2", 0, POPT_ARG_INT, &i2cid2, 0, "I2C Device ID Byte 2", "0-255"},
+         {"i2c-id3", 0, POPT_ARG_INT, &i2cid3, 0, "I2C Device ID Byte 3", "0-255"},
          {"debug", 'v', POPT_ARG_NONE, &debug, 0, "Debug"},
          POPT_AUTOHELP {}
       };
@@ -414,7 +422,10 @@ main(int argc, const char *argv[])
    setbit2(0x0C, 4, cbusdrive, "CBUS Drive Current Strength");
    setbit(0x0C, 6, cbusslow, "CBUS Slew Rate Slow");
    setbit(0x0C, 7, cbusschmitt, "CBUS Schmitt Trigger Enable");
-
+   setword(0x0A, i2cslave, "I2C Slave Address");
+   setbyte(0x16, i2cid1, "I2C Device ID Byte 1");
+   setbyte(0x17, i2cid2, "I2C Device ID Byte 2");
+   setbyte(0x18, i2cid3, "I2C Device ID Byte 3");
 
    checksum();
 
