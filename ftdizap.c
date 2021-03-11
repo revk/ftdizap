@@ -227,7 +227,8 @@ checksum(void)
 int
 main(int argc, const char *argv[])
 {
-   int             cbus0 = -1,
+   int             cbusall = -1,
+                   cbus0 = -1,
                    cbus1 = -1,
                    cbus2 = -1,
                    cbus3 = -1;
@@ -291,6 +292,7 @@ main(int argc, const char *argv[])
          {"vendor", 'v', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchvid, 0, "Vendor ID to find device", "N"},
          {"product", 'p', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchpid, 0, "Product ID to find device", "N"},
          {"index", 'i', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchindex, 0, "Index to find device", "N"},
+         {"cbus", 0, POPT_ARG_INT, &cbusall, 0, "All CBUS outputs", "0/1"},
          {"cbus0", 0, POPT_ARG_INT, &cbus0, 0, "CBUS0 output", "0/1"},
          {"cbus1", 0, POPT_ARG_INT, &cbus1, 0, "CBUS1 output", "0/1"},
          {"cbus2", 0, POPT_ARG_INT, &cbus2, 0, "CBUS2 output", "0/1"},
@@ -344,7 +346,7 @@ main(int argc, const char *argv[])
          {"i2c-id1", 0, POPT_ARG_INT, &i2cid1, 0, "I2C Device ID Byte 1", "0-255"},
          {"i2c-id2", 0, POPT_ARG_INT, &i2cid2, 0, "I2C Device ID Byte 2", "0-255"},
          {"i2c-id3", 0, POPT_ARG_INT, &i2cid3, 0, "I2C Device ID Byte 3", "0-255"},
-         {"debug", 'v', POPT_ARG_NONE, &debug, 0, "Debug"},
+         {"debug", 0, POPT_ARG_NONE, &debug, 0, "Debug"},
          POPT_AUTOHELP {}
       };
 
@@ -381,10 +383,16 @@ main(int argc, const char *argv[])
       mask |= (1 << 2);
    if (cbus3 >= 0)
       mask |= (1 << 3);
-   if (mask)
+   if (mask || cbusall >= 0)
    {                            /* Setting CBUS */
       unsigned char   value = 0;
-      if (cbus0 > 0)
+      if (cbusall > 0)
+         value |= (0xF ^ mask);
+      //All remaining bits
+         if (cbusall >= 0)
+         mask |= 0xF;
+      //All bits
+         if (cbus0 > 0)
          value |= (1 << 0);
       if (cbus1 > 0)
          value |= (1 << 1);
@@ -397,10 +405,11 @@ main(int argc, const char *argv[])
       if (libusb_release_interface(ftdi->usb_dev, 0))
          errx(1, "Release failed");
       if (reset)
-      { // RTS reset
-	          ftdi_setrts(ftdi,1); /* makes low */
-		  usleep(100000);
-	          ftdi_setrts(ftdi,0); /* makes high */
+      {
+         //RTS reset
+            ftdi_setrts(ftdi, 1);       /* makes low */
+         usleep(100000);
+         ftdi_setrts(ftdi, 0);  /* makes high */
       }
    } else
    {                            /* EEPROM */
