@@ -168,12 +168,13 @@ getstring(unsigned int n, const char *desc)
       warnx("Bad string %s at 0x%04X+%d", desc, pos, len);
       return "";
    }
-   char           *ret = malloc((len - 2) / 2 + 1);
+   len = (len - 2) / 2;
+   char           *ret = malloc(len + 1);
    if (!ret)
       errx(1, "malloc");
    for (int a = 0; a < len; a++)
       ret[a] = buf[pos + 2 + a * 2];
-   ret[(len - 2) / 2] = 0;
+   ret[len] = 0;
    /* TODO does that mean unicode, we could UTF stuff? */
    return ret;
 }
