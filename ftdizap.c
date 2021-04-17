@@ -282,6 +282,7 @@ main(int argc, const char *argv[])
                    i2cid2 = -1,
                    i2cid3 = -1;
    int             reset = 0;
+   int             dtr = -1;
    const char     *description = NULL;
    const char     *manufacturer = NULL;
    const char     *product = NULL;
@@ -299,6 +300,7 @@ main(int argc, const char *argv[])
          {"cbus2", 0, POPT_ARG_INT, &cbus2, 0, "CBUS2 output", "0/1"},
          {"cbus3", 0, POPT_ARG_INT, &cbus3, 0, "CBUS3 output", "0/1"},
          {"reset", 0, POPT_ARG_NONE, &reset, 0, "RTS reset"},
+         {"dtr", 0, POPT_ARG_INT, &dtr, 0, "Set DTR", "0/1"},
          {"vid", 'V', POPT_ARG_INT, &vid, 0, "Vendor ID", "N"},
          {"pid", 'P', POPT_ARG_INT, &pid, 0, "Product ID", "N"},
          {"manufacturer", 'M', POPT_ARG_STRING, &manufacturer, 0, "Manufacturer", "text"},
@@ -375,6 +377,8 @@ main(int argc, const char *argv[])
    if (ftdi_usb_open_desc_index(ftdi, matchvid, matchpid, NULL, NULL, matchindex) < 0)
       errx(1, "Cannot find device");
 
+   if (dtr >= 0)
+      ftdi_setdtr(ftdi, dtr);
    unsigned char   mask = 0;
    if (cbus0 >= 0)
       mask |= (1 << 0);
@@ -384,7 +388,7 @@ main(int argc, const char *argv[])
       mask |= (1 << 2);
    if (cbus3 >= 0)
       mask |= (1 << 3);
-   if (mask || cbusall >= 0)
+   if (mask || cbusall >= 0 || reset)
    {                            /* Setting CBUS */
       unsigned char   value = 0;
       if (cbusall > 0)
@@ -406,9 +410,8 @@ main(int argc, const char *argv[])
       if (libusb_release_interface(ftdi->usb_dev, 0))
          errx(1, "Release failed");
       if (reset)
-      {
-         //RTS reset
-            ftdi_setrts(ftdi, 1);       /* makes low */
+      {                         /* RTS reset */
+         ftdi_setrts(ftdi, 1);  /* makes low */
          usleep(100000);
          ftdi_setrts(ftdi, 0);  /* makes high */
       }
