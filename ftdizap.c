@@ -24,6 +24,31 @@ unsigned char   buf[ELEN];
 unsigned char   was[ELEN];
 unsigned int    spos = SPOS;
 
+// Note CBUS mode documentation is lacking, depends on chip... See https://www.intra2net.com/en/developer/libftdi/documentation/ftdi_8c_source.html
+// FT230/FT231 :-
+// 0	TRISTATE
+// 1	TXLED
+// 2	RXLED
+// 3	TXRXLED
+// 4	PWREN
+// 5	SLEEP
+// 6	DRIVE_0
+// 7	DRIVE_1
+// 8	IOMODE
+// 9	TXDEN
+// 10	CLK24
+// 11	CLK12
+// 12	CLK6
+// 13	BAT_DETECT
+// 14	BAT_DETECT#
+// 15	I2C_TXE#
+// 16	I2C_RXF#
+// 17	VBUS_SENSE
+// 18	BB_WR#
+// 19	BBRD#
+// 20	TIME_STAMP
+// 21	AWAKE#
+
 inline unsigned char
 getbit(unsigned int n, unsigned int b)
 {
@@ -283,6 +308,7 @@ main(int argc, const char *argv[])
                    i2cid3 = -1;
    int             reset = 0;
    int             dtr = -1;
+   int             rts = -1;
    const char     *description = NULL;
    const char     *manufacturer = NULL;
    const char     *product = NULL;
@@ -300,7 +326,8 @@ main(int argc, const char *argv[])
          {"cbus2", 0, POPT_ARG_INT, &cbus2, 0, "CBUS2 output", "0/1"},
          {"cbus3", 0, POPT_ARG_INT, &cbus3, 0, "CBUS3 output", "0/1"},
          {"reset", 0, POPT_ARG_NONE, &reset, 0, "RTS reset"},
-         {"dtr", 0, POPT_ARG_INT, &dtr, 0, "Set DTR", "0/1"},
+         {"dtr", 0, POPT_ARG_INT, &dtr, 0, "Set DTR", "0/1 (2=toggle)"},
+         {"rts", 0, POPT_ARG_INT, &rts, 0, "Set RTS", "0/1 (2=toggle)"},
          {"vid", 'V', POPT_ARG_INT, &vid, 0, "Vendor ID", "N"},
          {"pid", 'P', POPT_ARG_INT, &pid, 0, "Product ID", "N"},
          {"manufacturer", 'M', POPT_ARG_STRING, &manufacturer, 0, "Manufacturer", "text"},
@@ -377,8 +404,25 @@ main(int argc, const char *argv[])
    if (ftdi_usb_open_desc_index(ftdi, matchvid, matchpid, NULL, NULL, matchindex) < 0)
       errx(1, "Cannot find device");
 
-   if (dtr >= 0)
+   if (dtr == 2)
+   {                            /* toggle */
+      ftdi_setdtr(ftdi, 1);
+      usleep(100000);
+   } else if (dtr >= 0)
       ftdi_setdtr(ftdi, dtr);
+   if (rts == 2)
+   {                            /* toggle */
+      ftdi_setrts(ftdi, 1);
+      usleep(100000);
+      ftdi_setrts(ftdi, 0);
+      usleep(100000);
+   } else if (rts >= 0)
+      ftdi_setrts(ftdi, rts);
+   if (dtr == 2)
+   {
+      ftdi_setdtr(ftdi, 0);
+      usleep(100000);
+   }
    unsigned char   mask = 0;
    if (cbus0 >= 0)
       mask |= (1 << 0);
