@@ -49,6 +49,8 @@ unsigned int    spos = SPOS;
 // 20	TIME_STAMP
 // 21	AWAKE#
 
+#define inline
+
 inline unsigned char
 getbit(unsigned int n, unsigned int b)
 {
