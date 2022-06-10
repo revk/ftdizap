@@ -370,7 +370,7 @@ main(int argc, const char *argv[])
       errx(1, "Failed FTDI init");
 
    if (ftdi_usb_open_desc_index(ftdi, matchvid, matchpid, NULL, NULL, matchindex) < 0)
-      errx(1, "Cannot find device");
+      errx(1, "Cannot find device - ARE YOU RUNNING THIS ON THE RIGHT MACHINE?");
 
    unsigned char   mask = 0;
    if (cbus0 >= 0)
