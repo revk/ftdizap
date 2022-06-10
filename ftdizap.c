@@ -24,6 +24,33 @@ unsigned char   buf[ELEN];
 unsigned char   was[ELEN];
 unsigned int    spos = SPOS;
 
+// Note CBUS mode documentation is lacking, depends on chip... See https://www.intra2net.com/en/developer/libftdi/documentation/ftdi_8c_source.html
+// FT230/FT231 :-
+// 0	TRISTATE
+// 1	TXLED
+// 2	RXLED
+// 3	TXRXLED
+// 4	PWREN
+// 5	SLEEP
+// 6	DRIVE_0
+// 7	DRIVE_1
+// 8	IOMODE
+// 9	TXDEN
+// 10	CLK24
+// 11	CLK12
+// 12	CLK6
+// 13	BAT_DETECT
+// 14	BAT_DETECT#
+// 15	I2C_TXE#
+// 16	I2C_RXF#
+// 17	VBUS_SENSE
+// 18	BB_WR#
+// 19	BBRD#
+// 20	TIME_STAMP
+// 21	AWAKE#
+
+#define inline
+
 inline unsigned char
 getbit(unsigned int n, unsigned int b)
 {
@@ -168,12 +195,13 @@ getstring(unsigned int n, const char *desc)
       warnx("Bad string %s at 0x%04X+%d", desc, pos, len);
       return "";
    }
-   char           *ret = malloc((len - 2) / 2 + 1);
+   len = (len - 2) / 2;
+   char           *ret = malloc(len + 1);
    if (!ret)
       errx(1, "malloc");
    for (int a = 0; a < len; a++)
       ret[a] = buf[pos + 2 + a * 2];
-   ret[(len - 2) / 2] = 0;
+   ret[len] = 0;
    /* TODO does that mean unicode, we could UTF stuff? */
    return ret;
 }
@@ -227,7 +255,8 @@ checksum(void)
 int
 main(int argc, const char *argv[])
 {
-   int             cbus0 = -1,
+   int             cbusall = -1,
+                   cbus0 = -1,
                    cbus1 = -1,
                    cbus2 = -1,
                    cbus3 = -1;
@@ -280,6 +309,8 @@ main(int argc, const char *argv[])
                    i2cid2 = -1,
                    i2cid3 = -1;
    int             reset = 0;
+   int             dtr = -1;
+   int             rts = -1;
    const char     *description = NULL;
    const char     *manufacturer = NULL;
    const char     *product = NULL;
@@ -291,11 +322,14 @@ main(int argc, const char *argv[])
          {"vendor", 'v', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchvid, 0, "Vendor ID to find device", "N"},
          {"product", 'p', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchpid, 0, "Product ID to find device", "N"},
          {"index", 'i', POPT_ARG_INT | POPT_ARGFLAG_SHOW_DEFAULT, &matchindex, 0, "Index to find device", "N"},
+         {"cbus", 0, POPT_ARG_INT, &cbusall, 0, "All CBUS outputs", "0/1"},
          {"cbus0", 0, POPT_ARG_INT, &cbus0, 0, "CBUS0 output", "0/1"},
          {"cbus1", 0, POPT_ARG_INT, &cbus1, 0, "CBUS1 output", "0/1"},
          {"cbus2", 0, POPT_ARG_INT, &cbus2, 0, "CBUS2 output", "0/1"},
          {"cbus3", 0, POPT_ARG_INT, &cbus3, 0, "CBUS3 output", "0/1"},
          {"reset", 0, POPT_ARG_NONE, &reset, 0, "RTS reset"},
+         {"dtr", 0, POPT_ARG_INT, &dtr, 0, "Set DTR", "0/1 (2=toggle)"},
+         {"rts", 0, POPT_ARG_INT, &rts, 0, "Set RTS", "0/1 (2=toggle)"},
          {"vid", 'V', POPT_ARG_INT, &vid, 0, "Vendor ID", "N"},
          {"pid", 'P', POPT_ARG_INT, &pid, 0, "Product ID", "N"},
          {"manufacturer", 'M', POPT_ARG_STRING, &manufacturer, 0, "Manufacturer", "text"},
@@ -344,7 +378,7 @@ main(int argc, const char *argv[])
          {"i2c-id1", 0, POPT_ARG_INT, &i2cid1, 0, "I2C Device ID Byte 1", "0-255"},
          {"i2c-id2", 0, POPT_ARG_INT, &i2cid2, 0, "I2C Device ID Byte 2", "0-255"},
          {"i2c-id3", 0, POPT_ARG_INT, &i2cid3, 0, "I2C Device ID Byte 3", "0-255"},
-         {"debug", 'v', POPT_ARG_NONE, &debug, 0, "Debug"},
+         {"debug", 0, POPT_ARG_NONE, &debug, 0, "Debug"},
          POPT_AUTOHELP {}
       };
 
@@ -372,6 +406,25 @@ main(int argc, const char *argv[])
    if (ftdi_usb_open_desc_index(ftdi, matchvid, matchpid, NULL, NULL, matchindex) < 0)
       errx(1, "Cannot find device - ARE YOU RUNNING THIS ON THE RIGHT MACHINE?");
 
+   if (dtr == 2)
+   {                            /* toggle */
+      ftdi_setdtr(ftdi, 1);
+      usleep(100000);
+   } else if (dtr >= 0)
+      ftdi_setdtr(ftdi, dtr);
+   if (rts == 2)
+   {                            /* toggle */
+      ftdi_setrts(ftdi, 1);
+      usleep(100000);
+      ftdi_setrts(ftdi, 0);
+      usleep(100000);
+   } else if (rts >= 0)
+      ftdi_setrts(ftdi, rts);
+   if (dtr == 2)
+   {
+      ftdi_setdtr(ftdi, 0);
+      usleep(100000);
+   }
    unsigned char   mask = 0;
    if (cbus0 >= 0)
       mask |= (1 << 0);
@@ -381,10 +434,16 @@ main(int argc, const char *argv[])
       mask |= (1 << 2);
    if (cbus3 >= 0)
       mask |= (1 << 3);
-   if (mask)
+   if (mask || cbusall >= 0 || reset)
    {                            /* Setting CBUS */
       unsigned char   value = 0;
-      if (cbus0 > 0)
+      if (cbusall > 0)
+         value |= (0xF ^ mask);
+      //All remaining bits
+         if (cbusall >= 0)
+         mask |= 0xF;
+      //All bits
+         if (cbus0 > 0)
          value |= (1 << 0);
       if (cbus1 > 0)
          value |= (1 << 1);
@@ -397,10 +456,10 @@ main(int argc, const char *argv[])
       if (libusb_release_interface(ftdi->usb_dev, 0))
          errx(1, "Release failed");
       if (reset)
-      { // RTS reset
-	          ftdi_setrts(ftdi,1); /* makes low */
-		  usleep(100000);
-	          ftdi_setrts(ftdi,0); /* makes high */
+      {                         /* RTS reset */
+         ftdi_setrts(ftdi, 1);  /* makes low */
+         usleep(100000);
+         ftdi_setrts(ftdi, 0);  /* makes high */
       }
    } else
    {                            /* EEPROM */
